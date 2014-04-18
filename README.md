@@ -1,4 +1,4 @@
-myPDDL - A Modular Knowledge Engineering Tool for PDDL
+Source Code for myPDDL - A Modular Knowledge Engineering Tool for PDDL
 =======================================================
 
 *View my [Project site](http://pold87.github.io/myPDDL/) for current developments and further information.*
