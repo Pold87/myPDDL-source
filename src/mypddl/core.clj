@@ -86,9 +86,9 @@
 
 
 (defn all-pddl-preds->hash-map
-  "Takes a list of PDDL predicates and
-  returns a hash-map of types and the
-  assigned predicate"
+  "Take a list of PDDL predicates and
+  return a hash-map of types and the
+  corresponding predicates"
   [pddl-preds]
   ;; remove :predicates keyword
   (let [pddl-preds (if (= :predicates (first pddl-preds))
@@ -112,7 +112,7 @@
             (clojure.string/join " " coll))))
 
 (defn types->hash-map-helper
-  "Convert splitted type list (['<expr>' '<subtype1.1> <subtype1.2> ...' '<type1>']
+  "Convert split type list (['<expr>' '<subtype1.1> <subtype1.2> ...' '<type1>']
   to a hash-map {'<type1>': ['<subtype1.1>' '<subtype1.2>' ...], '<type2>': ...}"
   [coll]
   (reduce (fn [h-map [_ objs obj-type]]
@@ -126,7 +126,7 @@
           coll))
 
 (defn types->hash-map
-  "Splits types and converts them into a hash-map"
+  "Split types and convert them to into a hash-map"
   [pddl-types]
   (types->hash-map-helper (split-up pddl-types)))
 
@@ -144,44 +144,44 @@ to the dot language"
 
 (defn types-hash-map->dot-language
   "Convert a PDDL types hash-map
-to the dot language notation"
+to the DOT language notation"
   [pddl-types-map]
   (clojure.string/join "\n"
                        (map types-map-entry->dot-language
                             pddl-types-map)))
 
 (defn PDDL->dot-with-style
-  "Add dot template"
+  "Add DOT template"
   [preds types dot-template]
   (let [template (slurp dot-template)
         predicates (clojure.string/join
                     (hash-map->dot
                      (all-pddl-preds->hash-map preds)))
         types (types-hash-map->dot-language
-                (types->hash-map types))]
+               (types->hash-map types))]
+    ;; Replace GENERATED in template with new content
     (clojure.string/replace  template
                              #"GENERATED"
                              (str predicates types))))
 
 
 (defn PDDL->dot
-  "Takes a complete PDDL file
-and generates a UML type diagram"
+  "Take a complete PDDL file
+and generate a type diagram"
   [pddl-file dot-template]
   (PDDL->dot-with-style (pci/get-PDDL-predicates pddl-file)
                         (pci/get-PDDL-types pddl-file)
                         dot-template))
 
-;;; Copied from https://www.refheap.com/9034
+;;; Source: https://www.refheap.com/9034
 (defn exit-on-close [sketch]
-  "Guarantees that Clojure script will be
-exited after the JFrame is closed"
+  "Exit Clojure script after the JFrame is closed"
   (let [frame (-> sketch .getParent .getParent .getParent .getParent)]
     (.setDefaultCloseOperation frame javax.swing.JFrame/EXIT_ON_CLOSE)))
-  
+
 
 (defn -main
-  "Runs the input/output scripts"
+  "Run myPDDL"
   [& args]
   (let [tool (first args)]
     (cond
@@ -197,7 +197,8 @@ exited after the JFrame is closed"
            project-root (nth args 6)
            project-dir (str project-root project-name "/")
            plan-script (str project-dir "plan")]
-       
+
+       ;; Create folders and files
        (fs/mkdirs project-dir)
        (fs/mkdir (str project-dir "domains"))
        (fs/mkdir (str project-dir "solutions"))
@@ -208,42 +209,50 @@ exited after the JFrame is closed"
        
        ;; Create planning script
        (when (fs/exists? planner-template)
-             (fs/copy planner-template plan-script)
-             (fs/chmod "+x" plan-script))
+         (fs/copy planner-template plan-script)
+         (fs/chmod "+x" plan-script))
        
-       
+
+       ;; Create README
        (when (fs/exists? readme-template)
          (create-PDDL-file readme-template
                            (str project-dir "README.md")
                            #""
                            ""))
 
+       ;; Create domain
        (when (fs/exists? domain-template)
          (create-PDDL-file domain-template
                            (str project-dir "domain.pddl")
                            #"domain-name"
                            project-name))
 
+       ;; Create problem
        (when (fs/exists? problem-template)
          (create-PDDL-file problem-template
                            (str project-dir "problems/" "p01.pddl")
                            #"domain-name"
                            project-name)))
 
-       
+     
 
-       ;; myPDDL-distance: Calculate distances between PDDL objects
+     ;; myPDDL-distance: Calculate distances between PDDL objects
      (= "distance" tool)
      (let [location-file (nth args 1)
            location-predicate (symbol (nth args 2))
+           ;; Get locations from a PDDL file, calculate the distance
+           ;; and add the distances to the init part
            content (pci/add-part-to-PDDL location-file
-                                     'init
-                                     (calc-distance
-                                      (get-specified-predicate-in-pddl-file location-file
-                                                                        location-predicate)))
+                                         'init
+                                         (calc-distance
+                                          (get-specified-predicate-in-pddl-file location-file
+                                                                                location-predicate)))
+           ;; Add -locations.pddl to the new filename
            new-filename (clojure.string/replace-first location-file
                                                       #"(.+)\.pddl"
                                                       "$1-locations.pddl")]
+
+       ;; Write the output to the new filename using fipp (a pretty printer)
        (pci/write->file new-filename (fipp content {:width 85})))
 
      ;; Write dot graph to file.
@@ -271,18 +280,20 @@ exited after the JFrame is closed"
        ;; Create dot language file in dot folder.
        (doall
         (pci/write->file new-dot-filename
-                     (print (PDDL->dot input-domain dot-template))))
+                         (print (PDDL->dot input-domain dot-template))))
 
        ;; Create a png file from dot
        (fs/exec "dot" "-Tpng" "-o" new-png-filename new-dot-filename)
 
        ;; Open image with external program or with built-in JFrame?
        (if-not (= image-displayer "auto")
+         ;; External
          (doall
           (fs/exec image-displayer new-png-filename)
           (System/exit 0))
          (doall
-
+          ;; Built-In
+          
        ;; Settings for displaying the generated diagram.
        (def img (ref nil))
        
